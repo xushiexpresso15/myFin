@@ -11,7 +11,7 @@ import {
     PointElement,
     Filler
 } from 'chart.js'
-import { Pie, Bar, Line } from 'react-chartjs-2'
+import { Pie, Line } from 'react-chartjs-2'
 import { useTransactions } from '../hooks/useData'
 import { useAnalytics } from '../hooks/useAnalytics'
 
