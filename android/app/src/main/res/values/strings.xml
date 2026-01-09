@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">myFin</string>
+    <string name="title_activity_main">myFin</string>
+    <string name="package_name">com.myfin.app</string>
+    <string name="custom_url_scheme">com.myfin.app</string>
+</resources>
