@@ -38,19 +38,42 @@ const PlusIcon = () => (
 )
 
 function AppContent() {
-    const { user, loading, signOut, profile } = useAuth()
+    const { user, loading, error, signOut, profile } = useAuth()
     const [showAddTransaction, setShowAddTransaction] = useState(false)
     const location = useLocation()
 
+    // Show loading state
     if (loading) {
         return (
             <div className="loading-page">
                 <div className="app-background"></div>
                 <div className="loading-spinner"></div>
+                <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>載入中...</p>
             </div>
         )
     }
 
+    // Show error state
+    if (error) {
+        return (
+            <div className="loading-page">
+                <div className="app-background"></div>
+                <div className="glass-card" style={{ padding: '24px', textAlign: 'center', maxWidth: '300px' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⚠️</div>
+                    <h2 style={{ marginBottom: '12px' }}>發生錯誤</h2>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>{error}</p>
+                    <button
+                        className="glass-button glass-button--primary"
+                        onClick={() => window.location.reload()}
+                    >
+                        重新載入
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // Show login page if not authenticated
     if (!user) {
         return <LoginPage />
     }
@@ -160,7 +183,8 @@ function AppContent() {
                 <TransactionForm
                     onClose={() => setShowAddTransaction(false)}
                     onSuccess={() => {
-                        // Force refresh by navigating
+                        setShowAddTransaction(false)
+                        // Trigger re-fetch instead of reload
                         window.location.reload()
                     }}
                 />

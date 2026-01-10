@@ -3,18 +3,15 @@
     "appName": "myFin",
     "webDir": "dist",
     "android": {
-        "backgroundColor": "#1a1a2e",
-        "allowMixedContent": true,
-        "captureInput": true,
-        "webContentsDebuggingEnabled": true
+        "backgroundColor": "#1a1a2e"
     },
     "server": {
-        "androidScheme": "https",
-        "allowNavigation": [
-            "accounts.google.com",
-            "*.google.com",
-            "*.supabase.co",
-            "dojasahciotiejhccwfk.supabase.co"
-        ]
+        "url": "https://xushiexpresso15.github.io/myFin/",
+        "cleartext": false
+    },
+    "plugins": {
+        "App": {
+            "launchShowDuration": 0
+        }
     }
 }

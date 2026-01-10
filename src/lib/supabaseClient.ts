@@ -1,13 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase credentials not found. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.')
+// Create a dummy client if credentials are missing to prevent crashes
+let supabase: SupabaseClient
+
+if (supabaseUrl && supabaseAnonKey) {
+    supabase = createClient(supabaseUrl, supabaseAnonKey)
+} else {
+    console.error('⚠️ Supabase credentials not found!')
+    console.error('Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
+    // Create a dummy client that won't crash but also won't work
+    supabase = createClient('https://placeholder.supabase.co', 'placeholder-key')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export { supabase }
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
 // Type definitions for our database
 export interface Profile {
