@@ -2,10 +2,13 @@ import { useTransactions, useCategories, useFundingSources } from '../hooks/useD
 import { useAnalytics } from '../hooks/useAnalytics'
 
 export default function HomePage() {
-    const { transactions, loading } = useTransactions()
-    const { expenseCategories } = useCategories()
-    const { fundingSources } = useFundingSources()
+    const { transactions, loading: transactionsLoading } = useTransactions()
+    const { expenseCategories, loading: categoriesLoading } = useCategories()
+    const { fundingSources, loading: fundingLoading } = useFundingSources()
     const analytics = useAnalytics(transactions)
+
+    // Wait for all data to load
+    const loading = transactionsLoading || categoriesLoading || fundingLoading
 
     if (loading) {
         return (
