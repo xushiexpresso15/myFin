@@ -2,19 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase, Profile, isSupabaseConfigured } from '../lib/supabaseClient'
 
-// Capacitor App plugin for deep links
-let CapacitorApp: any = null
-try {
-    // Dynamic import to avoid issues on web
-    import('@capacitor/app').then(module => {
-        CapacitorApp = module.App
-    }).catch(() => {
-        console.log('Capacitor App plugin not available (web mode)')
-    })
-} catch {
-    console.log('Running in web mode')
-}
-
 interface AuthContextType {
     user: User | null
     profile: Profile | null
@@ -27,16 +14,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Custom scheme for deep link
-const APP_SCHEME = 'myfin'
-const REDIRECT_URL = `${APP_SCHEME}://auth/callback`
-const WEB_REDIRECT_URL = typeof window !== 'undefined'
-    ? window.location.origin + window.location.pathname
-    : 'https://xushiexpresso15.github.io/myFin/'
-
-// Detect if running in Capacitor
-const isCapacitor = typeof window !== 'undefined' &&
-    (window as any).Capacitor !== undefined
+// Get the redirect URL based on platform
+const getRedirectUrl = (): string => {
+    if (typeof window === 'undefined') {
+        return 'https://xushiexpresso15.github.io/myFin/'
+    }
+    // For web, use the current URL without hash
+    return window.location.origin + window.location.pathname
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
@@ -45,78 +30,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    // Handle deep link for OAuth callback
+    // Handle URL hash for OAuth callback (works for both web and Capacitor)
     useEffect(() => {
-        if (!isCapacitor || !CapacitorApp) return
-
-        const handleAppUrlOpen = async (event: { url: string }) => {
-            console.log('Deep link received:', event.url)
-
-            // Check if it's our auth callback
-            if (event.url.startsWith(APP_SCHEME + '://auth')) {
-                // Extract the tokens from the URL
-                const url = new URL(event.url.replace(`${APP_SCHEME}://`, 'https://'))
-                const accessToken = url.searchParams.get('access_token')
-                const refreshToken = url.searchParams.get('refresh_token')
-
-                if (accessToken && refreshToken) {
-                    try {
-                        const { data, error } = await supabase.auth.setSession({
-                            access_token: accessToken,
-                            refresh_token: refreshToken
-                        })
-
-                        if (error) {
-                            console.error('Session set error:', error)
-                            setError('登入失敗')
-                        } else if (data.session) {
-                            setSession(data.session)
-                            setUser(data.session.user)
-                            await createOrUpdateProfile(data.session.user)
-                            await initializeUserData(data.session.user.id)
-                            fetchProfile(data.session.user.id)
-                        }
-                    } catch (err) {
-                        console.error('Deep link auth error:', err)
-                    }
-                }
-            }
-        }
-
-        // Listen for app URL open events
-        CapacitorApp.addListener('appUrlOpen', handleAppUrlOpen)
-
-        return () => {
-            CapacitorApp.removeAllListeners()
-        }
-    }, [])
-
-    // Handle URL hash for web OAuth callback
-    useEffect(() => {
-        const handleHashChange = async () => {
+        const handleAuthCallback = async () => {
+            // Check for hash with tokens
             const hash = window.location.hash
             if (hash && hash.includes('access_token')) {
-                // Parse the hash
+                console.log('Found access token in URL hash')
                 const params = new URLSearchParams(hash.substring(1))
                 const accessToken = params.get('access_token')
                 const refreshToken = params.get('refresh_token')
 
                 if (accessToken && refreshToken) {
                     try {
-                        await supabase.auth.setSession({
+                        const { error: sessionError } = await supabase.auth.setSession({
                             access_token: accessToken,
                             refresh_token: refreshToken
                         })
-                        // Clear the hash
-                        window.location.hash = ''
+                        if (sessionError) {
+                            console.error('Session set error:', sessionError)
+                        }
+                        // Clear the hash but keep the path
+                        if (window.history.replaceState) {
+                            window.history.replaceState(null, '', window.location.pathname)
+                        }
                     } catch (err) {
-                        console.error('Hash auth error:', err)
+                        console.error('Auth callback error:', err)
                     }
                 }
             }
         }
 
-        handleHashChange()
+        handleAuthCallback()
     }, [])
 
     useEffect(() => {
@@ -127,54 +72,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return
         }
 
+        let mounted = true
+
         // Get initial session with timeout
         const timeout = setTimeout(() => {
-            setLoading(false)
-            setError('連線逾時，請檢查網路連線。')
-        }, 10000) // 10 second timeout
+            if (mounted) {
+                setLoading(false)
+            }
+        }, 8000) // 8 second timeout
 
         supabase.auth.getSession()
-            .then(({ data: { session }, error: sessionError }) => {
+            .then(({ data: { session: currentSession }, error: sessionError }) => {
+                if (!mounted) return
                 clearTimeout(timeout)
+
                 if (sessionError) {
                     console.error('Session error:', sessionError)
-                    setError('無法取得登入狀態')
+                    // Don't set error for auth errors, just show login
                     setLoading(false)
                     return
                 }
-                setSession(session)
-                setUser(session?.user ?? null)
-                if (session?.user) {
-                    fetchProfile(session.user.id)
+
+                setSession(currentSession)
+                setUser(currentSession?.user ?? null)
+
+                if (currentSession?.user) {
+                    fetchProfile(currentSession.user.id)
                 }
                 setLoading(false)
             })
             .catch((err) => {
+                if (!mounted) return
                 clearTimeout(timeout)
                 console.error('Auth error:', err)
-                setError('連線錯誤')
                 setLoading(false)
             })
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
+            async (event, newSession) => {
+                if (!mounted) return
                 console.log('Auth event:', event)
-                setSession(session)
-                setUser(session?.user ?? null)
 
-                if (event === 'SIGNED_IN' && session?.user) {
+                setSession(newSession)
+                setUser(newSession?.user ?? null)
+
+                if (event === 'SIGNED_IN' && newSession?.user) {
                     try {
-                        await createOrUpdateProfile(session.user)
-                        await initializeUserData(session.user.id)
+                        await createOrUpdateProfile(newSession.user)
+                        await initializeUserData(newSession.user.id)
+                        fetchProfile(newSession.user.id)
                     } catch (err) {
                         console.error('Error initializing user data:', err)
                     }
                 }
 
-                if (session?.user) {
-                    fetchProfile(session.user.id)
-                } else {
+                if (!newSession?.user) {
                     setProfile(null)
                 }
 
@@ -183,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         )
 
         return () => {
+            mounted = false
             clearTimeout(timeout)
             subscription.unsubscribe()
         }
@@ -190,22 +144,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function fetchProfile(userId: string) {
         try {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
                 .single()
 
-            if (error) {
-                console.error('Profile fetch error:', error)
-                return
-            }
-
             if (data) {
-                setProfile(data)
+                setProfile(data as Profile)
             }
         } catch (err) {
-            console.error('Profile fetch exception:', err)
+            console.error('Profile fetch error:', err)
         }
     }
 
@@ -220,12 +169,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!existingProfile) {
                 await supabase.from('profiles').insert({
                     id: user.id,
-                    display_name: user.user_metadata.full_name || user.email?.split('@')[0],
-                    avatar_url: user.user_metadata.avatar_url
+                    display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+                    avatar_url: user.user_metadata?.avatar_url || null
                 })
             }
         } catch (err) {
-            console.error('Create profile error:', err)
+            // Ignore errors - profile might already exist
+            console.log('Profile create/update:', err)
         }
     }
 
@@ -292,25 +242,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function signInWithGoogle() {
         try {
-            // Use different redirect based on platform
-            const redirectTo = isCapacitor ? REDIRECT_URL : WEB_REDIRECT_URL
+            setError(null)
+            const redirectUrl = getRedirectUrl()
+            console.log('Sign in redirect URL:', redirectUrl)
 
-            console.log('Signing in with redirect:', redirectTo)
-
-            const { error } = await supabase.auth.signInWithOAuth({
+            const { error: signInError } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: redirectTo,
-                    queryParams: {
-                        access_type: 'offline',
-                        prompt: 'consent'
-                    }
+                    redirectTo: redirectUrl
                 }
             })
 
-            if (error) {
-                console.error('Sign in error:', error)
-                setError('登入失敗：' + error.message)
+            if (signInError) {
+                console.error('Sign in error:', signInError)
+                setError('登入失敗：' + signInError.message)
             }
         } catch (err) {
             console.error('Sign in exception:', err)

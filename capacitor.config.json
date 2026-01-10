@@ -8,10 +8,5 @@
     "server": {
         "url": "https://xushiexpresso15.github.io/myFin/",
         "cleartext": false
-    },
-    "plugins": {
-        "App": {
-            "launchShowDuration": 0
-        }
     }
 }
