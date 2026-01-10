@@ -140,12 +140,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     async function signInWithGoogle() {
-        // 取得當前網址的 origin，支援 GitHub Pages
-        const redirectUrl = window.location.origin + window.location.pathname
         await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: redirectUrl
+                skipBrowserRedirect: false,
+                redirectTo: window.location.href.split('#')[0]
             }
         })
     }
