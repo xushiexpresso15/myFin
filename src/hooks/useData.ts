@@ -8,15 +8,25 @@ export function useCategories() {
     const [loading, setLoading] = useState(true)
 
     const fetchCategories = useCallback(async () => {
-        if (!user) return
+        if (!user) {
+            setLoading(false)
+            return
+        }
 
-        const { data } = await supabase
-            .from('categories')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('name')
+        try {
+            const { data, error } = await supabase
+                .from('categories')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('name')
 
-        if (data) setCategories(data)
+            if (error) {
+                console.error('Error fetching categories:', error)
+            }
+            if (data) setCategories(data)
+        } catch (err) {
+            console.error('Categories fetch error:', err)
+        }
         setLoading(false)
     }, [user])
 
@@ -25,7 +35,7 @@ export function useCategories() {
     }, [fetchCategories])
 
     const addCategory = async (category: Omit<Category, 'id' | 'user_id' | 'created_at'>) => {
-        if (!user) return
+        if (!user) return { data: null, error: new Error('Not authenticated') }
 
         const { data, error } = await supabase
             .from('categories')
@@ -83,15 +93,25 @@ export function useFundingSources() {
     const [loading, setLoading] = useState(true)
 
     const fetchFundingSources = useCallback(async () => {
-        if (!user) return
+        if (!user) {
+            setLoading(false)
+            return
+        }
 
-        const { data } = await supabase
-            .from('funding_sources')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('name')
+        try {
+            const { data, error } = await supabase
+                .from('funding_sources')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('name')
 
-        if (data) setFundingSources(data)
+            if (error) {
+                console.error('Error fetching funding sources:', error)
+            }
+            if (data) setFundingSources(data)
+        } catch (err) {
+            console.error('Funding sources fetch error:', err)
+        }
         setLoading(false)
     }, [user])
 
@@ -100,7 +120,7 @@ export function useFundingSources() {
     }, [fetchFundingSources])
 
     const addFundingSource = async (source: Omit<FundingSource, 'id' | 'user_id' | 'created_at'>) => {
-        if (!user) return
+        if (!user) return { data: null, error: new Error('Not authenticated') }
 
         const { data, error } = await supabase
             .from('funding_sources')
@@ -158,28 +178,38 @@ export function useTransactions(dateRange?: { start: string; end: string }) {
     const [loading, setLoading] = useState(true)
 
     const fetchTransactions = useCallback(async () => {
-        if (!user) return
-
-        let query = supabase
-            .from('transactions')
-            .select(`
-        *,
-        category:categories(*),
-        funding_source:funding_sources(*)
-      `)
-            .eq('user_id', user.id)
-            .order('transaction_date', { ascending: false })
-            .order('created_at', { ascending: false })
-
-        if (dateRange) {
-            query = query
-                .gte('transaction_date', dateRange.start)
-                .lte('transaction_date', dateRange.end)
+        if (!user) {
+            setLoading(false)
+            return
         }
 
-        const { data } = await query
+        try {
+            let query = supabase
+                .from('transactions')
+                .select(`
+                    *,
+                    category:categories(*),
+                    funding_source:funding_sources(*)
+                `)
+                .eq('user_id', user.id)
+                .order('transaction_date', { ascending: false })
+                .order('created_at', { ascending: false })
 
-        if (data) setTransactions(data)
+            if (dateRange) {
+                query = query
+                    .gte('transaction_date', dateRange.start)
+                    .lte('transaction_date', dateRange.end)
+            }
+
+            const { data, error } = await query
+
+            if (error) {
+                console.error('Error fetching transactions:', error)
+            }
+            if (data) setTransactions(data)
+        } catch (err) {
+            console.error('Transactions fetch error:', err)
+        }
         setLoading(false)
     }, [user, dateRange?.start, dateRange?.end])
 
@@ -195,16 +225,16 @@ export function useTransactions(dateRange?: { start: string; end: string }) {
         description?: string
         transaction_date: string
     }) => {
-        if (!user) return
+        if (!user) return { data: null, error: new Error('Not authenticated') }
 
         const { data, error } = await supabase
             .from('transactions')
             .insert({ ...transaction, user_id: user.id })
             .select(`
-        *,
-        category:categories(*),
-        funding_source:funding_sources(*)
-      `)
+                *,
+                category:categories(*),
+                funding_source:funding_sources(*)
+            `)
             .single()
 
         if (data && !error) {
@@ -219,10 +249,10 @@ export function useTransactions(dateRange?: { start: string; end: string }) {
             .update(updates)
             .eq('id', id)
             .select(`
-        *,
-        category:categories(*),
-        funding_source:funding_sources(*)
-      `)
+                *,
+                category:categories(*),
+                funding_source:funding_sources(*)
+            `)
             .single()
 
         if (data && !error) {
